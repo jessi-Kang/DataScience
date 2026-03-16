@@ -1,8 +1,10 @@
 import { motion } from 'framer-motion'
 import SectionWrapper from './ui/SectionWrapper'
-import { caseStudies } from '../data/caseStudies'
+import { loadCaseStudies } from '../data/caseStudies'
 
 export default function Timeline() {
+  const studies = loadCaseStudies()
+
   const scrollToCase = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -13,7 +15,7 @@ export default function Timeline() {
 
       <div className="overflow-x-auto pb-4 -mx-6 px-6">
         <div className="flex items-center justify-center min-w-max gap-0">
-          {caseStudies.map((study, index) => (
+          {studies.map((study, index) => (
             <div key={study.id} className="flex items-center">
               {/* Node */}
               <motion.button
@@ -32,7 +34,7 @@ export default function Timeline() {
               </motion.button>
 
               {/* Connector line */}
-              {index < caseStudies.length - 1 && (
+              {index < studies.length - 1 && (
                 <div className="w-16 md:w-24 h-0.5 bg-gradient-to-r from-accent to-accent/30" />
               )}
             </div>
