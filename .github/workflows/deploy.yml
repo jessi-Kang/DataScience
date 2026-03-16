@@ -2,9 +2,10 @@ name: Deploy Portfolio to GitHub Pages
 
 on:
   push:
-    branches: [main, master]
-    paths:
-      - 'portfolio/**'
+    branches:
+      - main
+      - master
+      - 'claude/build-portfolio-react-wKX3N'
   workflow_dispatch:
 
 permissions:
@@ -27,14 +28,13 @@ jobs:
           node-version: 22
 
       - name: Install and Build
-        working-directory: portfolio
         run: |
           npm ci
           npm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: portfolio/dist
+          path: dist
 
   deploy:
     needs: build
