@@ -1,7 +1,11 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import TypingAnimation from './ui/TypingAnimation'
+import { loadHeroConfig } from '../utils/crypto'
 
 export default function Hero() {
+  const [hero] = useState(loadHeroConfig)
+
   const scrollToCases = () => {
     document.getElementById('case-studies')?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -17,7 +21,7 @@ export default function Hero() {
         transition={{ duration: 0.6 }}
         className="text-accent text-sm md:text-base font-medium tracking-wider uppercase mb-6"
       >
-        PM Portfolio
+        {hero.tagline}
       </motion.p>
 
       <motion.h1
@@ -27,7 +31,7 @@ export default function Hero() {
         className="text-3xl md:text-5xl lg:text-6xl font-bold leading-tight max-w-4xl"
       >
         <TypingAnimation
-          text="ML로 행동을 예측하고, LLM으로 대화를 설계합니다"
+          text={hero.headline}
           speed={60}
         />
       </motion.h1>
@@ -38,7 +42,7 @@ export default function Hero() {
         transition={{ duration: 0.6, delay: 0.4 }}
         className="mt-6 text-gray-400 text-base md:text-lg max-w-2xl"
       >
-        데이터로 행동을 예측하고, 점점 더 사람에 가까운 AI를 만들어온 PM
+        {hero.subtitle}
       </motion.p>
 
       <motion.button
@@ -50,7 +54,7 @@ export default function Hero() {
         onClick={scrollToCases}
         className="mt-10 px-8 py-3 bg-accent hover:bg-accent-light text-white font-medium rounded-full transition-colors cursor-pointer"
       >
-        케이스 보기
+        {hero.ctaText}
       </motion.button>
 
       {/* Scroll indicator */}
