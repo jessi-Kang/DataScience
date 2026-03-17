@@ -117,12 +117,20 @@ export function verifyAccessToken(input) {
   const tokens = getAccessTokens()
   const now = Date.now()
   const match = tokens.find((t) => t.token === input && t.expiresAt > now)
-  return !!match
+  if (!match) return null
+  return { label: match.label, expiresAt: match.expiresAt }
 }
 
-export function createVisitorSession() {
-  const expires = Date.now() + 60 * 60 * 1000 // 1 hour
-  sessionStorage.setItem(VISITOR_SESSION_KEY, JSON.stringify({ expires }))
+export function createVisitorSession(tokenExpiresAt) {
+  const sessionExpires = Date.now() + 60 * 60 * 1000 // 1 hour
+  sessionStorage.setItem(VISITOR_SESSION_KEY, JSON.stringify({ expires: sessionExpires, tokenExpiresAt }))
+}
+
+export function getVisitorTokenExpiry() {
+  const raw = sessionStorage.getItem(VISITOR_SESSION_KEY)
+  if (!raw) return null
+  const { tokenExpiresAt } = JSON.parse(raw)
+  return tokenExpiresAt || null
 }
 
 export function isVisitorSessionValid() {
