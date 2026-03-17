@@ -1,7 +1,7 @@
 const ADMIN_KEY = 'portfolio_admin_hash'
 const TOKENS_KEY = 'portfolio_access_tokens'
 const ADMIN_SESSION_KEY = 'portfolio_admin_session'
-const VISITOR_SESSION_KEY = 'portfolio_visitor_session'
+const ACCESS_LOG_KEY = 'portfolio_access_log'
 const HERO_KEY = 'portfolio_hero_config'
 
 // --- PBKDF2 helpers (Web Crypto API) ---
@@ -103,6 +103,7 @@ export function createAccessToken(label, expiresAt) {
     token,
     createdAt: Date.now(),
     expiresAt: new Date(expiresAt).getTime(),
+    forceExpired: false,
   })
   saveAccessTokens(tokens)
   return token
@@ -113,35 +114,55 @@ export function revokeAccessToken(id) {
   saveAccessTokens(tokens)
 }
 
+export function forceExpireToken(id) {
+  const tokens = getAccessTokens().map((t) =>
+    t.id === id ? { ...t, forceExpired: true } : t,
+  )
+  saveAccessTokens(tokens)
+}
+
 export function verifyAccessToken(input) {
   const tokens = getAccessTokens()
   const now = Date.now()
-  const match = tokens.find((t) => t.token === input && t.expiresAt > now)
+  const match = tokens.find(
+    (t) => t.token === input && t.expiresAt > now && !t.forceExpired,
+  )
   if (!match) return null
-  return { label: match.label, expiresAt: match.expiresAt }
+  return { id: match.id, label: match.label, expiresAt: match.expiresAt }
 }
 
-export function createVisitorSession(tokenExpiresAt) {
-  const sessionExpires = Date.now() + 60 * 60 * 1000 // 1 hour
-  sessionStorage.setItem(VISITOR_SESSION_KEY, JSON.stringify({ expires: sessionExpires, tokenExpiresAt }))
+// --- Access Log ---
+
+export function getAccessLog() {
+  try {
+    const raw = localStorage.getItem(ACCESS_LOG_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
 }
 
-export function getVisitorTokenExpiry() {
-  const raw = sessionStorage.getItem(VISITOR_SESSION_KEY)
-  if (!raw) return null
-  const { tokenExpiresAt } = JSON.parse(raw)
-  return tokenExpiresAt || null
+function saveAccessLog(log) {
+  localStorage.setItem(ACCESS_LOG_KEY, JSON.stringify(log))
 }
 
-export function isVisitorSessionValid() {
-  const raw = sessionStorage.getItem(VISITOR_SESSION_KEY)
-  if (!raw) return false
-  const { expires } = JSON.parse(raw)
-  if (Date.now() > expires) {
-    sessionStorage.removeItem(VISITOR_SESSION_KEY)
-    return false
-  }
-  return true
+export function recordAccess(tokenId, tokenLabel) {
+  const log = getAccessLog()
+  log.push({
+    tokenId,
+    tokenLabel,
+    accessedAt: Date.now(),
+    userAgent: navigator.userAgent,
+    language: navigator.language,
+  })
+  saveAccessLog(log)
+}
+
+export function getAccessLogForToken(tokenId) {
+  return getAccessLog().filter((entry) => entry.tokenId === tokenId)
+}
+
+export function clearAccessLog() {
+  localStorage.removeItem(ACCESS_LOG_KEY)
 }
 
 // --- Hero Config ---

@@ -7,11 +7,10 @@ import Contact from './components/Contact'
 import Admin from './components/Admin'
 import AuthGate from './components/AuthGate'
 import AdminLogin from './components/AdminLogin'
-import { isVisitorSessionValid, isAdminSessionValid, getVisitorTokenExpiry } from './utils/crypto'
+import { isAdminSessionValid } from './utils/crypto'
 
-function TokenExpiryBanner() {
+function TokenExpiryBanner({ expiresAt }) {
   const [visible, setVisible] = useState(true)
-  const expiresAt = getVisitorTokenExpiry()
 
   if (!expiresAt || !visible) return null
 
@@ -62,7 +61,9 @@ function TokenExpiryBanner() {
 
 function App() {
   const [isAdmin, setIsAdmin] = useState(window.location.hash === '#admin')
-  const [visitorAuth, setVisitorAuth] = useState(isVisitorSessionValid)
+  // Visitor auth is memory-only: refresh = re-auth required
+  const [visitorAuth, setVisitorAuth] = useState(false)
+  const [tokenExpiresAt, setTokenExpiresAt] = useState(null)
   const [adminAuth, setAdminAuth] = useState(isAdminSessionValid)
 
   useEffect(() => {
@@ -79,12 +80,19 @@ function App() {
   }
 
   if (!visitorAuth) {
-    return <AuthGate onSuccess={() => setVisitorAuth(true)} />
+    return (
+      <AuthGate
+        onSuccess={(expiresAt) => {
+          setTokenExpiresAt(expiresAt)
+          setVisitorAuth(true)
+        }}
+      />
+    )
   }
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 font-sans">
-      <TokenExpiryBanner />
+      <TokenExpiryBanner expiresAt={tokenExpiresAt} />
       <Hero />
       <Timeline />
       <CaseStudies />

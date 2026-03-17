@@ -4,6 +4,8 @@ import {
   getAccessTokens,
   createAccessToken,
   revokeAccessToken,
+  forceExpireToken,
+  getAccessLogForToken,
   loadHeroConfig,
   saveHeroConfig,
   resetHeroConfig,
@@ -141,24 +143,86 @@ function CaseEditor({ study, onChange }) {
 
 /* ─── Token Manager ─── */
 
+function formatDate(ts) {
+  return new Date(ts).toLocaleString('ko-KR', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+function parseBrowser(ua) {
+  if (!ua) return '알 수 없음'
+  if (ua.includes('Edg/')) return 'Edge'
+  if (ua.includes('Chrome/')) return 'Chrome'
+  if (ua.includes('Firefox/')) return 'Firefox'
+  if (ua.includes('Safari/') && !ua.includes('Chrome')) return 'Safari'
+  return '기타'
+}
+
+function parseOS(ua) {
+  if (!ua) return ''
+  if (ua.includes('Windows')) return 'Windows'
+  if (ua.includes('Mac OS')) return 'macOS'
+  if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS'
+  if (ua.includes('Android')) return 'Android'
+  if (ua.includes('Linux')) return 'Linux'
+  return ''
+}
+
+function TokenAccessLog({ tokenId }) {
+  const logs = getAccessLogForToken(tokenId)
+
+  if (logs.length === 0) {
+    return <p className="text-xs text-gray-600 italic pl-2">접속 이력 없음</p>
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {logs.slice().reverse().map((entry, i) => (
+        <div key={i} className="flex items-center gap-2 text-xs pl-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+          <span className="text-gray-300">{formatDate(entry.accessedAt)}</span>
+          <span className="text-gray-500">·</span>
+          <span className="text-gray-400">{parseBrowser(entry.userAgent)}</span>
+          {parseOS(entry.userAgent) && (
+            <>
+              <span className="text-gray-500">·</span>
+              <span className="text-gray-500">{parseOS(entry.userAgent)}</span>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function TokenManager() {
   const [tokens, setTokens] = useState(getAccessTokens)
   const [label, setLabel] = useState('')
   const [expiry, setExpiry] = useState('')
   const [newToken, setNewToken] = useState('')
+  const [expandedId, setExpandedId] = useState(null)
+
+  const refreshTokens = () => setTokens(getAccessTokens())
 
   const handleCreate = () => {
     if (!label.trim() || !expiry) return
     const token = createAccessToken(label.trim(), expiry)
     setNewToken(token)
-    setTokens(getAccessTokens())
+    refreshTokens()
     setLabel('')
     setExpiry('')
   }
 
   const handleRevoke = (id) => {
     revokeAccessToken(id)
-    setTokens(getAccessTokens())
+    refreshTokens()
+  }
+
+  const handleForceExpire = (id) => {
+    if (window.confirm('이 토큰을 강제 만료 처리하시겠습니까?\n현재 접속 중인 사용자는 새로고침 시 재접속이 불가합니다.')) {
+      forceExpireToken(id)
+      refreshTokens()
+    }
   }
 
   const handleCopy = () => {
@@ -216,20 +280,85 @@ function TokenManager() {
 
       {/* Token list */}
       {tokens.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <h4 className="text-sm font-semibold text-gray-300">발급된 토큰</h4>
           {tokens.map((t) => {
-            const expired = t.expiresAt <= now
+            const expired = t.expiresAt <= now || t.forceExpired
+            const isExpanded = expandedId === t.id
+            const logs = getAccessLogForToken(t.id)
+            const accessCount = logs.length
+            const lastAccess = accessCount > 0 ? logs[logs.length - 1].accessedAt : null
+
+            let statusLabel, statusColor
+            if (t.forceExpired) {
+              statusLabel = '강제 만료'
+              statusColor = 'text-orange-400'
+            } else if (t.expiresAt <= now) {
+              statusLabel = '기간 만료'
+              statusColor = 'text-red-400'
+            } else {
+              statusLabel = `~${formatDate(t.expiresAt)}`
+              statusColor = 'text-green-400'
+            }
+
             return (
-              <div key={t.id} className={`flex items-center justify-between gap-3 bg-gray-800/50 rounded-lg px-3 py-2 ${expired ? 'opacity-50' : ''}`}>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm text-white font-medium">{t.label}</span>
-                  <span className={`ml-2 text-xs ${expired ? 'text-red-400' : 'text-green-400'}`}>
-                    {expired ? '만료됨' : `~${new Date(t.expiresAt).toLocaleString('ko-KR')}`}
-                  </span>
+              <div key={t.id} className={`bg-gray-800/50 rounded-lg overflow-hidden ${expired ? 'opacity-60' : ''}`}>
+                {/* Token header */}
+                <div
+                  className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer hover:bg-gray-800/80 transition-colors"
+                  onClick={() => setExpandedId(isExpanded ? null : t.id)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white font-medium">{t.label}</span>
+                      <span className={`text-xs ${statusColor}`}>{statusLabel}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className="text-xs text-gray-500">
+                        접속 {accessCount}회
+                      </span>
+                      {lastAccess && (
+                        <span className="text-xs text-gray-600">
+                          마지막: {formatDate(lastAccess)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <code className="text-xs text-gray-500 font-mono hidden sm:block">{t.token.slice(0, 8)}…</code>
+                  <svg
+                    className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                  </svg>
                 </div>
-                <code className="text-xs text-gray-500 font-mono hidden sm:block">{t.token.slice(0, 8)}…</code>
-                <button onClick={() => handleRevoke(t.id)} className="text-red-400 hover:text-red-300 text-xs cursor-pointer">폐기</button>
+
+                {/* Expanded: access log + actions */}
+                {isExpanded && (
+                  <div className="px-4 pb-3 space-y-3 border-t border-gray-700/50">
+                    <div className="pt-3">
+                      <p className="text-xs font-medium text-gray-400 mb-2">접속 이력</p>
+                      <TokenAccessLog tokenId={t.id} />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      {!expired && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleForceExpire(t.id) }}
+                          className="px-3 py-1.5 text-xs border border-orange-800 rounded-lg hover:border-orange-500 text-orange-400 cursor-pointer"
+                        >
+                          강제 만료
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRevoke(t.id) }}
+                        className="px-3 py-1.5 text-xs border border-red-800 rounded-lg hover:border-red-500 text-red-400 cursor-pointer"
+                      >
+                        완전 삭제
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}

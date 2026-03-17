@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { verifyAccessToken, createVisitorSession } from '../utils/crypto'
+import { verifyAccessToken, recordAccess } from '../utils/crypto'
 
 export default function AuthGate({ onSuccess }) {
   const [token, setToken] = useState('')
@@ -17,8 +17,8 @@ export default function AuthGate({ onSuccess }) {
 
     const result = verifyAccessToken(token.trim())
     if (result) {
-      createVisitorSession(result.expiresAt)
-      onSuccess()
+      recordAccess(result.id, result.label)
+      onSuccess(result.expiresAt)
     } else {
       setError('유효하지 않거나 만료된 접속 코드입니다.')
     }
